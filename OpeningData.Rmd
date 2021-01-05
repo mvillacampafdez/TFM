@@ -1,0 +1,270 @@
+---
+title: "Opening Data"
+author: "Marina Villacampa Fernández"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+En primer lugar, carpeta donde están los ficheros:
+```{r}
+dir <- getwd()
+dir.2 <- "C:/Users/MARINA/Desktop/MásterUOC/TFM"
+```
+
+
+# DATA
+
+## TCGA      
+El primer fichero es 'Master_table' (TCGA):       
+Esta tabla contiene información histológica, clínica y cosas de CNAs que se podrán usar más adelante. También hay un par de columnas al final de un cálculo inmunológico, pero sobre todo el tema de CNAs/immunity (a partir de la columna 'frac_gen_altered'). En principio, tener solo en cuenta los datos histológicos/clínicos.
+
+```{r}
+TCGA <- read.csv('TCGA_master_table_UOC.txt', sep='\t')
+TCGA
+```
+
+
+## KIRP-TP               
+Este archico contiene las mutaciones que han resultado de correr el algoritmo MutSig2CV, que acaba identificando las mutaciones más frecuentes en tu cohorte, y por tanto, las que probablemente tienen un papel driver para el desarrollo del tumor. Estas mutaciones se podrían correlacionar con set datos clínicos/histológicos, cogiendo por ejemplo las 10 más frecuentes (se puede manipular fácilmente la tabla) y ver, por ejemplo, si hay algún subtipo histológico enriqecido en alguna de ellas.
+
+Este primer archivo mucho mucho más completo, es el fichero con las mutaciones todas juntas (la master table del paquete kirp nosequé más adelante). Este fichero es el input para el programa mutsigcv:
+```{r}
+library(maftools)
+KIRP_TP <- read.maf('KIRP-TP.final_analysis_set.maf')
+summary(KIRP_TP)
+KIRP_TP
+#(KIRP_TP@maf.silent)
+length(unique(KIRP_TP@data$Tumor_Sample_Barcode))
+```
+
+
+
+Y ESTE archivo a continuación es el output del programa mutsigcv:
+
+```{r}
+KIRP <- read.csv2('TCGA_KIRP2.txt', header=T, sep='\t')
+KIRP
+```
+
+
+
+## KIRP.Mutation_Packager       
+Se trata de una carpeta comprimida con los archivos de las mutaciones non-synonymous.maf de cada una de las 291 muestras de la cohorte del TCGA. Pasando estos datos por el MutSigCV2, el TCGA creó el archivo anterior (KIRP-TP). Pero para ver las mutaciones con impacto inmunológico no nos interesan las más frecuentes sino todas las que hay por muestra. Es decir, para identificar las mutaciones 'inmunológicas', utilizaremos estos archivos de aquí.
+
+*Intentar entender por qué sólo se cogen las 'non-synonymous'*
+
+Con R, se pueden juntar todos los archivos en una sola tabla y luego seleccionar las 251 muestras que aparecen en la master_table. Están todos juntos en la tabala KIRP_TP!
+
+```{r}
+#setwd("C:/Users/MARINA/Desktop/MásterUOC/TFM/RStudio/KIRP.Mutation_Packager")
+list <- list.files("C:/Users/MARINA/Desktop/MásterUOC/TFM/RStudio/KIRP.Mutation_Packager")
+for (file in list){
+  if (startsWith(file,'TCGA')){
+    #print(file)
+  }
+}
+```
+
+
+## CGIMutations      
+Datos de mutacioes (públicos) para identificar las mutaciones driver (a partir del Cancer Genome Interpreter):
+
+```{r}
+CGIMutations <- read.csv('catalog_of_validated_oncogenic_mutations.tsv', sep='\t')
+CGIMutations
+```
+
+
+# OBJETIVOS       
+
+Objetivo general: Identificar las mutaciones (SNVs) somáticas que podrían tener un papel clave en la modulación de la respuesta inmunológica anti-tumoral en el pRCC
+
+1. Explorar las mutaciones somaticas de la cohorte de pRCC del TCGA e identificar las que son potencialmente patogénicas. De estas, separar las que (1) pueden tener un papel driver del cáncer (serán pocas, teóricamente) y las que (2) tengan un papel potencial en la respuesta inmunológica (nunca estudiado, unknown). Los datos de las mutaciones son públicos y para identificar las mutaciones drivers se puede usar el Cancer Genome Interpreter (https://www.cancergenomeinterpreter.org/mutations), mientras que para las mutaciones inmunológicas, se puede usar el algoritmo DomainXplorer (https://github.com/eduardporta/domainXplorer). 
+
+2. Correlacionar las mutaciones inmunológicas con la composición inmunológica de los tumores estudiados (que se puede obtenir con los datos de expresión, también públicos). El tema sería si cada una de las mutaciones detectadas con potencial papel inmunológico estan realmente influenciando algún factor de la inmunidad tumoral (nivel de celulas T, presentación de antígenos o lo que sea). Yo tengo ya algunos programas de composición inmunitaria corridos en esta cohorte, aunque se podrían utilizar algunos más. 
+
+3. Integrar los resultados con los datos de CNAs que ya he obtenido [si hay tiempo]: he encontrado que las CNAs grandes no influencian demasiado las características inmunitarias de los pRCC, a diferencia de lo que pasa en la mayoría de cánceres, aunque sí que veo que CNAs más pequeñas, que teóricamente se acumularían más tarde en la progresión del tumor, sí que juegan un papel en cortar la respuesta inmunitaria anti-tumoral. Me falta saber si las SNVs estan también afectando a todo esto (como pasa en casi todos los cánceres) y si se complementa o va en paralelo al efecto de las CNAs.
+
+
+- Explorar las mutaciones somáticas de la cohorte de pRCC del Cancer
+Genome Atlas Program (TCGA) e identificar las mutaciones que tengan
+un papel driver del cáncer y las que tienen un papel potencial en la
+respuesta inmunológica.
+- Estudiar la composición inmunológica de los tumores a partir de los
+datos de expresión génica.
+- Correlacionar las mutaciones inmunológicas con la composición
+inmunológica de los tumores estudiados.
+- Por último, integrar los resultados con los datos de alteraciones grandes (CNAs) obtenidas en estudios anteriores (este objetivo se desarrollará
+en función del tiempo y de los resultados obtenidos en los puntos
+anteriores).
+
+# Análisis:       
+
+## Identificar mutaciones driver del cancer y papel potencial en la respuesta inmunológica:       
+
+### CGI: Mutaciones driver         
+```{r}
+#CGIMutations
+#KIRP
+CGIMutations[1,'gene']
+drivers <- c()
+genes <- unique(CGIMutations$gene)
+for (i in 1:length(genes)){
+  drivers <- c(drivers,KIRP[KIRP$gene == genes[i],'gene'])
+  KIRP[KIRP$gene == genes[i],'gene']
+}
+drivers
+length(drivers)
+length(genes)
+RPC <- unique(CGIMutations[CGIMutations$cancer_acronym=='RPC','gene'])
+RPC
+KIRP[KIRP$gene==RPC,]
+```
+
+Si buscamos los genes coincidentes entre ambas bases de datos, de los 247 genes únicos presentes en la base de datos Canger Genome Interpreter, 217 están presentes en las mutaciones más frecuentes de nuestros datos (dataset KIRP, correspondiente al output de mutsigcv). En cambio, si selecciono únicamente los genes del CGI que corresponden con este tipo de cáncer (acrónico RPC), únicamente hay un gen, 'MET', un proto-oncogen receptor de la tirosina kinasa en humanos (https://www.ncbi.nlm.nih.gov/gene/4233).
+
+### Mutaciones más comunes del KIRP:
+```{r}
+freqgenes <- KIRP$gene[1:10] # 344 18
+dim(KIRP[as.numeric(KIRP$p) < 0.01,]) # 98 18
+View(KIRP_TP@data)
+KIRP_freq <- KIRP_TP@data[KIRP_TP@data$Hugo_Symbol==freqgenes[1],c(1,2,4,5,6,7,8,9,10,16,17)]
+for (i in 2:length(freqgenes)){
+  KIRP_freq <- rbind(KIRP_freq,KIRP_TP@data[KIRP_TP@data$Hugo_Symbol==freqgenes[i],c(1,2,4,5,6,7,8,9,10,16,17)])
+}
+table(KIRP_freq$Hugo_Symbol)
+tumor_samples <- c()
+for (i in 1:length(KIRP_freq$Tumor_Sample_Barcode)){
+  x <-as.character(KIRP_freq$Tumor_Sample_Barcode[i])
+  tumor_samples <- c(tumor_samples, substr(x, start = 1, stop = 12))
+}
+tumor_samples
+TCGA_freq <- TCGA[TCGA$SAMPLE==tumor_samples[i],]
+for (i in 2:length(tumor_samples)){
+  TCGA_freq <- rbind(TCGA_freq,TCGA[TCGA$SAMPLE==tumor_samples[i],])
+}
+(table(TCGA_freq$Type))
+table(TCGA_freq$Stage_American)
+drivers1pc <- c()
+genes <- unique(CGIMutations$gene)
+KIRP1pc <- KIRP[as.numeric(KIRP$p) < 0.01,]
+for (i in 1:length(genes)){
+  drivers1pc <- c(drivers1pc,KIRP1pc[KIRP1pc$gene == genes[i],'gene'])
+}
+drivers1pc 
+drivers5pc <- c()
+KIRP5pc <- KIRP[as.numeric(KIRP$p) < 0.05,]
+for (i in 1:length(genes)){
+  drivers5pc <- c(drivers5pc,KIRP5pc[KIRP5pc$gene == genes[i],'gene'])
+}
+drivers5pc 
+```
+
+
+### DomainXplorer: Papel potencial en la respuesta inmunológica      
+Este algoritmo se corre en la computadora, en la línea de comandos, pero hay que preparar los tres archivos:     
+
+Archivo 1: File with mutations       
+```{r}
+KIRP
+summary(KIRP)
+```
+
+```{r}
+KIRP_TP@data$Tumor_Sample_Barcode[1]
+x <-as.character(KIRP_TP@data$Tumor_Sample_Barcode[1])
+substr(x, start = 1, stop = 12)
+tumor_samples <- c()
+for (i in 1:length(KIRP_TP@data$Tumor_Sample_Barcode)){
+  x <-as.character(KIRP_TP@data$Tumor_Sample_Barcode[i])
+  tumor_samples <- c(tumor_samples, substr(x, start = 1, stop = 12))
+}
+samples <- TCGA$SAMPLE
+sum(samples[1] == tumor_samples)
+pos <- KIRP_TP@data$Transcript_Position
+positions <- c()
+for (i in 1:length(pos)){
+  positions <- c(positions, round(as.numeric(strsplit(pos[i],'_')[[1]][1][1])/3))
+}
+proteins <- KIRP_TP@data$Refseq_prot_Id
+prot <- KIRP_TP@data$Annotation_Transcript
+#prot <- KIRP_TP@data$
+prot[1:5]
+head(KIRP_TP@data)
+head(proteins)
+```
+
+```{r}
+ensembl <- read.csv('ensemblToGeneName.txt', sep='\t',header=F)
+colnames(ensembl) <- c('transcript','gene')
+proteingene <- read.csv('table_protein_genename.txt',sep='\t')
+transcripts <- c()
+for (i in 1:length(prot)){
+  x <-as.character(prot[i])
+  transcripts <- c(transcripts, substr(x, start = 1, stop = 15))
+}
+transcripts[1:5]
+transcripts[1]
+gene <- ensembl[ensembl$transcript==transcripts[1],'gene']
+proteingene[proteingene$Gene_name==gene,1][1]
+proteins <- c()
+for (i in 1:length(transcripts)){
+  gene <- ensembl[ensembl$transcript==transcripts[i],'gene'] 
+  protein <- proteingene[proteingene$Gene_name==gene,1][1]
+  proteins <- c(proteins, protein)
+}
+length(proteins)
+length(transcripts)
+length(unique(proteins))
+length(unique(transcripts))
+```
+
+
+
+```{r}
+mutations <- matrix(c(tumor_samples,proteins,positions), ncol=3)
+colnames(mutations) <- c('Sample','Protein','Position')
+head(mutations)
+mutations <- na.omit(mutations)
+write.table(mutations, file= 'missense_mutations.txt', sep='\t',row.names = F,quote = F)
+equal <- c()
+for (i in 1:length(tumor_samples)){
+  equal <- c(equal, table(tumor_samples[i] == TCGA$SAMPLE)[[1]]==250)
+}
+length(equal)
+table(equal)
+mutations <- mutations[equal,]
+```
+
+
+
+Archivo 2: File with phenotype annotations: *Phenotype*
+
+```{r}
+TCGA
+Phenotype <- matrix(c(TCGA$SAMPLE,rep(1,251),TCGA$Immune_score), ncol=3)
+colnames(Phenotype) <- c('Sample','Project','Score')
+head(Phenotype)
+table(is.na(Phenotype))
+write.table(Phenotype, file= 'ESTIMATE_scores.txt', sep='\t',row.names = F,quote = F)
+```
+
+Archivo 3: File with Domain annotations     
+(este archivo ya está creado, es el archivo 'protein_regions.txt')
+```{r}
+regions <- read.table('protein_regions.txt')
+```
+
+perl domainXplorer.pl immune_domains/ tumor_immunology missense_mutations.txt ESTIMATE_scores.txt protein_regions.txt 0
+
+
+## RNA-Seq         
+
+Ir al download_prepare.R script y correrlo.
+
+
+
+

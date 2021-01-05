@@ -1,0 +1,546 @@
+---
+title: "Domains (domainXplorer)"
+author: "Marina Villacampa Fernández"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+En primer lugar, carpeta donde están los ficheros:
+```{r}
+dir <- getwd()
+dir.2 <- "C:/Users/MARINA/Desktop/MásterUOC/TFM"
+```
+
+
+# DATA
+
+## TCGA      
+El primer fichero es 'Master_table' (TCGA):       
+Esta tabla contiene información histológica, clínica y cosas de CNAs que se podrán usar más adelante. También hay un par de columnas al final de un cálculo inmunológico, pero sobre todo el tema de CNAs/immunity (a partir de la columna 'frac_gen_altered'). En principio, tener solo en cuenta los datos histológicos/clínicos.
+
+```{r}
+TCGA <- read.csv('TCGA_master_table_UOC.txt', sep='\t')
+#TCGA
+```
+
+
+## KIRP-TP               
+Este archico contiene las mutaciones que han resultado de correr el algoritmo MutSig2CV, que acaba identificando las mutaciones más frecuentes en tu cohorte, y por tanto, las que probablemente tienen un papel driver para el desarrollo del tumor. Estas mutaciones se podrían correlacionar con set datos clínicos/histológicos, cogiendo por ejemplo las 10 más frecuentes (se puede manipular fácilmente la tabla) y ver, por ejemplo, si hay algún subtipo histológico enriqecido en alguna de ellas.
+
+Este primer archivo mucho mucho más completo, es el fichero con las mutaciones todas juntas (la master table del paquete kirp nosequé más adelante). Este fichero es el input para el programa mutsigcv:
+```{r}
+library(maftools)
+KIRP_TP <- read.maf('KIRP-TP.final_analysis_set.maf')
+summary(KIRP_TP)
+#KIRP_TP
+#(KIRP_TP@maf.silent)
+length(unique(KIRP_TP@data$Tumor_Sample_Barcode))
+```
+
+
+
+Y ESTE archivo a continuación es el output del programa mutsigcv:
+
+```{r}
+KIRP <- read.csv2('TCGA_KIRP2.txt', header=T, sep='\t')
+#KIRP
+```
+
+
+
+## KIRP.Mutation_Packager       
+Se trata de una carpeta comprimida con los archivos de las mutaciones non-synonymous.maf de cada una de las 291 muestras de la cohorte del TCGA. Pasando estos datos por el MutSigCV2, el TCGA creó el archivo anterior (KIRP-TP). Pero para ver las mutaciones con impacto inmunológico no nos interesan las más frecuentes sino todas las que hay por muestra. Es decir, para identificar las mutaciones 'inmunológicas', utilizaremos estos archivos de aquí.
+
+
+## CGIMutations      
+Datos de mutacioes (públicos) para identificar las mutaciones driver (a partir del Cancer Genome Interpreter):
+
+```{r}
+CGIMutations <- read.csv('catalog_of_validated_oncogenic_mutations.tsv', sep='\t')
+#CGIMutations
+```
+
+
+# OBJETIVOS       
+
+Objetivo general: Identificar las mutaciones (SNVs) somáticas que podrían tener un papel clave en la modulación de la respuesta inmunológica anti-tumoral en el pRCC
+
+1. Explorar las mutaciones somaticas de la cohorte de pRCC del TCGA e identificar las que son potencialmente patogénicas. De estas, separar las que (1) pueden tener un papel driver del cáncer (serán pocas, teóricamente) y las que (2) tengan un papel potencial en la respuesta inmunológica (nunca estudiado, unknown). Los datos de las mutaciones son públicos y para identificar las mutaciones drivers se puede usar el Cancer Genome Interpreter (https://www.cancergenomeinterpreter.org/mutations), mientras que para las mutaciones inmunológicas, se puede usar el algoritmo DomainXplorer (https://github.com/eduardporta/domainXplorer). 
+
+2. Correlacionar las mutaciones inmunológicas con la composición inmunológica de los tumores estudiados (que se puede obtenir con los datos de expresión, también públicos). El tema sería si cada una de las mutaciones detectadas con potencial papel inmunológico estan realmente influenciando algún factor de la inmunidad tumoral (nivel de celulas T, presentación de antígenos o lo que sea). Yo tengo ya algunos programas de composición inmunitaria corridos en esta cohorte, aunque se podrían utilizar algunos más. 
+
+3. Integrar los resultados con los datos de CNAs que ya he obtenido [si hay tiempo]: he encontrado que las CNAs grandes no influencian demasiado las características inmunitarias de los pRCC, a diferencia de lo que pasa en la mayoría de cánceres, aunque sí que veo que CNAs más pequeñas, que teóricamente se acumularían más tarde en la progresión del tumor, sí que juegan un papel en cortar la respuesta inmunitaria anti-tumoral. Me falta saber si las SNVs estan también afectando a todo esto (como pasa en casi todos los cánceres) y si se complementa o va en paralelo al efecto de las CNAs.
+
+
+- Explorar las mutaciones somáticas de la cohorte de pRCC del Cancer
+Genome Atlas Program (TCGA) e identificar las mutaciones que tengan
+un papel driver del cáncer y las que tienen un papel potencial en la
+respuesta inmunológica.
+- Estudiar la composición inmunológica de los tumores a partir de los
+datos de expresión génica.
+- Correlacionar las mutaciones inmunológicas con la composición
+inmunológica de los tumores estudiados.
+- Por último, integrar los resultados con los datos de alteraciones grandes (CNAs) obtenidas en estudios anteriores (este objetivo se desarrollará
+en función del tiempo y de los resultados obtenidos en los puntos
+anteriores).
+
+# Análisis:       
+
+
+## DomainXplorer: Papel potencial en la respuesta inmunológica      
+
+Este algoritmo no se ha podido correr, por ello se ha descargado la tabla suplementaria del paper del domainXplorer, donde se encuentran las regiones obtenidas a partir de todos los datos de cáncer disponibles en la base de datos, entre los que se encuentran el cáncer del proyecto (carcinoma papilar renal). 
+
+En el paper ya se identificaron previamente una serie de mutaciones del KIRP que correlacionan con los valores ESTIMATE. A partir de estas mutaciones, se comparan para ver cuáles están en el papillar. Se hace a nivel GEN, puesto que a nivel dominio habrían poquísimos.
+
+La tabla a la que refiero es la siguiente:
+```{r}
+domains <- read.csv('dXplorer_SupTable.csv', header=T, sep='\t',dec = ',')
+```
+
+Información de las primeras filas del documento:
+
+Supplementary Table S1 - Regions identified by domainXplorer as associated with changes in immune infiltrate
+- Symbol: official gene symbol
+- Region: Region of the protein involved where ENSPXXXX is the protein isoform, ND/PFXXX/IDR is the type of region (ND: new domain / PF: PFAM domain / IDR: disordered region) and the numbers are the coordinates of the start and end of the region
+- p1: p value of the linear regression model
+- p2: p value of the wilcoxon test comparing samples with mutations in the region and samples with no mutations in the protein
+- p3: p value of the wilcoxon test comparing samples with mutations in the region and samples with other mutations in the protein
+- Mean F: Mean ESTIMATE immune score in samples with mutations in the region
+- Mean OG: Mean ESTIMATE immune score in samples with mutations in the other regions of the gene
+- Mean WT: Mean ESTIMATE immune score in samples with no mutations in the protein
+
+#### Dominios:
+
+Para los dominios, parto de un fichero con el nombre del gen, la región, tres p-valores distintos, y tres medias de valores ESTIMATE.
+
+En teoría se compararían las regiones obtenidas. Sin embargo, como no habría casi coincidencias, se buscan los genes coincidentes.        
+Genes:         
+- KIRP$gene --> este archivo era el archivo con las mutaciones más frecuentes, pero no dice nada sobre las muestras. Son simplemente aquellas mutaciones más frecuentes que se pueden encontrar.          
+- En el fichero TCGA no hay genes, solamente información de las muestras.
+- KIRP_TP@data$Hugo_Symbol --> genes del archivo.
+
+Tumor_Sample_Barcode: Nombre de las muestras en KIRP_TP@data
+
+Solo se incluyen aquellas muestras que están presentes en la tabla TCGA. El primer paso es obtener las muestras que incluyen al menos uno de los genes de la lista de 122 genes identificados en el paper de domainXplorer. Además, se guarda el tipo de muestra (si corresponde al tipo I del pRCC, tipo II o tipo 'Unknown'), y el p-valor correspondiente a esa mutación de la lista de los 122 genes identificados en el paper:
+
+```{r}
+genes <- c()
+muestras <- c()
+tipo <- c()
+pvalores <- c()
+for (i in 1:length(KIRP_TP@data$Hugo_Symbol)){
+  if (KIRP_TP@data$Hugo_Symbol[i] %in% domains$Symbol) {
+    muestra <- substr(as.character(KIRP_TP@data$Tumor_Sample_Barcode[[i]]), start = 1, stop = 12)
+    if (muestra %in% TCGA$SAMPLE){
+      genes <- c(genes, KIRP_TP@data$Hugo_Symbol[i])
+      muestras <- c(muestras, muestra)
+      tipo <- c(tipo, TCGA$Type[TCGA$SAMPLE==muestra])
+      pvalores <- c(pvalores,mean(domains[domains$Symbol==KIRP_TP@data$Hugo_Symbol[i],'p2']))
+    }
+  }
+}
+length(genes)
+length(muestras)
+length(tipo)
+length(pvalores)
+length(unique(genes))
+length(unique(muestras))
+length(unique(tipo))
+(domains[domains$Symbol=='ZNF626','p2'])
+```
+Se obtienen en total de las 122 mutaciones obtenidas en el paper de domainXplorer, que 71 de ellas coinciden en los genes de partida de los datos.
+
+Además, de las 282 muestras de las que se parte, 130 son las que contienen las mutaciones identificadas con el algoritmo domainXplorer relacionadas con la actividad inmunológica en el cáncer. Sin embargo, al comparar únicamente aquellas que están en la tabla del TCGA con los datos histológicos y los valores ESTIMATE de las mismas muestras (además de que incluye la información sobre el tipo de cáncer que corresponde la muestra), no se parten de las 282 muestras de la cohorte, sino de las 251 muestras de dicha tabla inicial. Al filtrar únicamente por dichas muestras, solo 111 muestras contienen las mutaciones identificadas con el algoritmo domainXplorer.
+
+Con estos datos se obtiene la tabla 1: los genes mutados más frecuentes de los 122 que se encuentran en las muestras del pRCC, las muestras en las que se encuentran estos genes mutados en la cohorte, el tipo de cancer de dicha muestra y el p-valor. 
+
+```{r}
+tabla1 <- data.frame(matrix(c(genes,muestras,tipo,pvalores),ncol = 4))
+colnames(tabla1) <- c('genes','muestras','tipoCancer','p-valor')
+tabla1 <- tabla1[order(pvalores),]
+head(tabla1)
+```
+
+Los genes mutados más significativos serían 'DNAH9', 'ABCA13', 'SPTA1', 'BPTF' y 'KCNH5' en estas muestras. Importante recordar que estos p-valores corresponden con los calculados en el paper del domainXplorer, en función de su posible relación con la respuesta inmunológica.
+
+
+```{r}
+table(unique(cbind(tabla1$muestras,tabla1$tipoCancer))[,2])
+```
+
+De estas muestras con las mutaciones identificadas, 42 corresponden al tipo I, 55 al tipo II y 61 catalogadas como 'Unknown', que se trata de un tercer tipo del pRCC.
+
+Esta tabla se puede variar, obteniendo una tabla secundaria, que incluya para cada gen, el número de muestras que lo contienen (diferenciando por el tipo del pRCC, tipo I, II o Unk):
+
+```{r}
+tipo1 <- c()
+tipo2 <- c()
+tipoUnk <- c()
+for (i in unique(tabla1$genes)){
+  tipo1 <- c(tipo1, sum((tabla1[tabla1$genes==i,'tipoCancer'])=='Type 1'))
+  tipo2 <- c(tipo2, sum((tabla1[tabla1$genes==i,'tipoCancer'])=='Type 2'))
+  tipoUnk <- c(tipoUnk, sum((tabla1[tabla1$genes==i,'tipoCancer'])=='Unk'))
+}
+tabla1b <- data.frame(matrix(c(unique(tabla1$genes),tipo1,tipo2,tipoUnk),ncol = 4))
+colnames(tabla1b) <- c('genes','Type 1','Type 2', 'Type Unk')
+```
+
+En esta tabla1b tiene la información acerca de la distribución del tipo de cáncer en cada mutación más simplificada.
+
+La gran mayoría de las mutaciones están presentes en más de un tipo de cáncer, o solo están presentes en la cohorte una única vez. Sin embargo, algunos genes están distribuídos de forma muy desigual. Destacan por ejemplo las mutaciones en los siguientes genes:
+
+- BPTF: sólo presente en las muestras de tipo Unknown
+- C7orf63: Tipo I
+- F2: Tipo Unk
+- FLG: Las 5 mutaciones presentes en la cohorte, todas en el tipo I
+- GLYR1: Tipo I
+- KATNAL2: Tipo Unk
+- MAML1: Las 3 de Tipo Unk
+- MAP1B: Tipo Unk
+- QSER1: Tipo I
+- SPTA1: Las 5 mutaciones, todas en el tipo II.
+
+Además, también hay algunos genes que están en los tres tipos de cáncer, como los siguientes:
+- ANK3, JMJD1C, MACF1, MUC17, SMEK2
+
+De forma similar, se obtiene la tabla1c, que contiene para todas las mutaciones, el número de muestras por cada tipo (no sólo las incluídas en los dominios):
+```{r}
+a <- c() #genes
+b <- c() # muestras
+c <- c() #tipo
+for (i in 1:length(KIRP_TP@data$Hugo_Symbol)){
+  muestra <- substr(as.character(KIRP_TP@data$Tumor_Sample_Barcode[[i]]), start = 1, stop = 12)
+  if (muestra %in% TCGA$SAMPLE){
+    a <- c(a, KIRP_TP@data$Hugo_Symbol[i])
+    b <- c(b, muestra)
+    c <- c(c, TCGA$Type[TCGA$SAMPLE==muestra])
+  }
+}
+t <- data.frame(matrix(c(a,b,c),ncol = 3))
+colnames(t) <- c('genes','muestras','tipoCancer')
+t1 <- c()
+t2 <- c()
+tUnk <- c()
+for (i in unique(t$genes)){
+  t1 <- c(t1, sum((t[t$genes==i,'tipoCancer'])=='Type 1'))
+  t2 <- c(t2, sum((t[t$genes==i,'tipoCancer'])=='Type 2'))
+  tUnk <- c(tUnk, sum((t[t$genes==i,'tipoCancer'])=='Unk'))
+}
+tabla1c <- data.frame(matrix(c(unique(t$genes),t1,t2,tUnk),ncol = 4))
+colnames(tabla1c) <- c('genes','Type 1','Type 2', 'Type Unk')
+```
+
+
+
+Una vez se tiene la tabla1, se obtiene la tabla 2. Esta tabla va a contener para cada uno de los 71 genes coincidentes en la cohorte del pRCC con la tabla de los genes cuyas mutaciones están asociadas con la respuesta inmunológica en el cáncer (la tabla con los 122 genes). Para cada uno de estos 71 genes coincidentes, se van a guardar el número de muestras que incluyen dicha mutación en la cohorte (de las 251 de la tabla de TCGA), el valor medio ESTIMATE de aquellas muestras con mutación en dicho gen, el valor medio ESTIMATE de las muestras sin mutación en dicho gen, el p-valor del test de Wilcoxon comparando ambas poblaciones (muestras con y sin mutación en dicho gen) y los valores MeanR y MeanWT.
+
+```{r}
+genes <- unique(genes)
+num_muestras <- c()
+ESTmut <- c()
+ESTnonmut <- c()
+pvalorWilcox <- c()
+MeanR <- c()
+MeanWT <- c()
+for (i in 1:length(genes)){
+  num_muestras <- c(num_muestras,length(tabla1[genes==genes[i],'muestras']))
+  x <- c()
+  y <- c()
+  for (j in 1:nrow(TCGA)){
+    if (TCGA$SAMPLE[j] %in% tabla1[genes==genes[i],'muestras']){
+      x <- c(x, TCGA$Immune_score[j])
+    } else {
+      y <- c(y, TCGA$Immune_score[j])
+    }
+  }
+  ESTmut <- c(ESTmut, mean(x))
+  ESTnonmut <- c(ESTnonmut, mean(y))
+  pvalorWilcox <- c(pvalorWilcox, wilcox.test(x, y)$p.value)
+  if (wilcox.test(x, y)$p.value < 0.05){
+    print(genes[i])
+    boxplot(x,y, main=genes[i],names = c('Con mutación','Sin mutación'),ylab='ESTIMATE')
+  }
+  MeanR <- c(MeanR, mean(domains[domains$Symbol==genes[i],'Mean.R']))
+  MeanWT <- c(MeanWT, mean(domains[domains$Symbol==genes[i],'Mean.WT']))
+}
+length(genes)
+length(num_muestras)
+length(ESTmut)
+length(ESTnonmut)
+length(pvalorWilcox)
+length(MeanR)
+length(MeanWT)
+tabla2 <- data.frame(matrix(c(genes,num_muestras,ESTmut,ESTnonmut,pvalorWilcox,MeanR,MeanWT),ncol = 7))
+colnames(tabla2) <- c('genes','Num_muestras','ESTIMATEmutation','ESTIMATEnonmutation','p-valorWilcox','MeanR','MeanWT')
+head(tabla2)
+```
+Generar el gráfico:
+```{r}
+par(mfrow=c(3,1))
+for (i in 1:length(genes)){
+  num_muestras <- c(num_muestras,length(tabla1[genes==genes[i],'muestras']))
+  x <- c()
+  y <- c()
+  for (j in 1:nrow(TCGA)){
+    if (TCGA$SAMPLE[j] %in% tabla1[genes==genes[i],'muestras']){
+      x <- c(x, TCGA$Immune_score[j])
+    } else {
+      y <- c(y, TCGA$Immune_score[j])
+    }
+  }
+  ESTmut <- c(ESTmut, mean(x))
+  ESTnonmut <- c(ESTnonmut, mean(y))
+  pvalorWilcox <- c(pvalorWilcox, wilcox.test(x, y)$p.value)
+  if (wilcox.test(x, y)$p.value < 0.05){
+    print(genes[i])
+    boxplot(x,y, main=genes[i],names = c('Con mutación','Sin mutación'),ylab='ESTIMATE')
+  }
+}
+```
+
+
+Sin embargo, estos tests estadísticos realizados no son significativos, ya que el número de muestras que contienen cada mutación es demasiado bajo. Hay que tenerlo en cuenta, aunque los valores ESTIMATE, MeanR y MeanWT sí que pueden ser de interés.
+
+
+Las últimas tablas van a ser similar, pero para los datos procesados de RNA-Seq. Para los datos de IPS, se va a obtener para cada uno de los estadísticos creados distintos p-valores: se van a comparar con un test de Wilcoxon (de dos a dos) y con un test de Kruskal-Wallis (entre los tres) para ver si hay diferencias significativas entre tipo I, tipo II y Unknown. Para ello, se va a obtener la tabla 3, con las siguientes columnas: valor medio para tipo 1, valor medio para tipo 2, valor medio para unknown, p-valor wilcoxon, p-valor kruskal-wallis. Las filas son los distintos valores calculados en el IPS (MHC, CP, Act_CD4, Act_CD8, TEM_CD4, TEM_CD8, EC, MDSC, Treg, SC)
+
+```{r}
+DF_IPS <- read.table('IPS_results_abrev.txt', sep = "\t", header = T)
+samples <- substr(as.character(DF_IPS$SAMPLE), start = 1, stop = 12)
+tipo1 <- samples %in% TCGA[TCGA$Type=='Type 1','SAMPLE']
+tipo2 <- samples %in% TCGA[TCGA$Type=='Type 2','SAMPLE']
+unk <- samples %in% TCGA[TCGA$Type=='Unk','SAMPLE']
+
+tipo <- c()
+for (i in 1:length(samples)){
+  ifelse (samples[i] %in% TCGA[TCGA$Type=='Type 1','SAMPLE'],(tipo <- c(tipo, 'Tipo 1')),ifelse(samples[i] %in% TCGA[TCGA$Type=='Type 2','SAMPLE'], (tipo <- c(tipo, 'Tipo 2')),ifelse(samples[i] %in% TCGA[TCGA$Type=='Unk','SAMPLE'], (tipo <- c(tipo, 'Unk')), (tipo <- c(tipo, 'NonTCGA')))))
+}
+
+DF <- DF_IPS
+DF$Type <- tipo
+DF <- DF[(tipo!='NonTCGA'),]
+names(DF_IPS)[-1]
+mean1 <- c()
+mean2 <- c()
+meanUnk <- c()
+pvalueWilcox <- c()
+pvalueKW <- c()
+for (i in names(DF_IPS)[-1]){
+  mean1 <- c(mean1, mean(DF_IPS[tipo1,i]))
+  mean2 <- c(mean2, mean(DF_IPS[tipo2,i]))
+  meanUnk <- c(meanUnk, mean(DF_IPS[unk,i]))
+  pvalueWilcox <- c(pvalueWilcox, wilcox.test(DF_IPS[tipo1,i], DF_IPS[tipo2,i])$p.value)
+  if (wilcox.test(DF_IPS[tipo1,i], DF_IPS[tipo2,i])$p.value < 0.05){
+    print(i)
+    boxplot(DF_IPS[tipo1,i], DF_IPS[tipo2,i])
+  }
+}
+
+pvalueKW <- c(kruskal.test(MHC ~ Type,data = DF)$p.value,kruskal.test(CP ~ Type,data = DF)$p.value,kruskal.test(Act_CD4 ~ Type,data = DF)$p.value,kruskal.test(Act_CD8 ~ Type,data = DF)$p.value,kruskal.test(TEM_CD4 ~ Type,data = DF)$p.value,kruskal.test(TEM_CD8 ~ Type,data = DF)$p.value,kruskal.test(EC ~ Type,data = DF)$p.value,kruskal.test(MDSC ~ Type,data = DF)$p.value,kruskal.test(Treg ~ Type,data = DF)$p.value,kruskal.test(SC ~ Type,data = DF)$p.value)
+
+tabla3 <- data.frame(matrix(c(names(DF_IPS)[-1],mean1,mean2,meanUnk,pvalueWilcox,pvalueKW),ncol = 6))
+colnames(tabla3) <- c('Celulas','Mean Type 1','Mean Type 2','Mean Unk','p-valor Wilcox','p-valor KruskalWallis')
+head(tabla3)
+# boxplot(DF_IPS[tipo1,"CP"], DF_IPS[unk,"CP"], DF_IPS[tipo2,"CP"], main="Células CP", names = c('Tipo 1','Tipo 2','Unknown'),ylab='IPS',xlab='p-valor = 8.9e-7')
+```
+
+
+
+Lo mismo para los datos obtenidos con el MCPcounter. Se va a obtener para cada valor, la media del tipo 1, la media del tipo 2, del Unknown, el p-valor del test de Wilcoxon y el p-valor del test de Kruskal Wallis (tabla 4):
+
+
+```{r}
+estimates <- read.table('mcp_estimates_tcga.txt', sep = "\t")
+estimates <- t(estimates)
+samples <- substr(as.character(rownames(estimates)), start = 1, stop = 12)
+samples <- gsub('\\.', '-', samples)
+tipo1 <- samples %in% TCGA[TCGA$Type=='Type 1','SAMPLE']
+tipo2 <- samples %in% TCGA[TCGA$Type=='Type 2','SAMPLE']
+unk <- samples %in% TCGA[TCGA$Type=='Unk','SAMPLE']
+
+tipo <- c()
+for (i in 1:length(samples)){
+  ifelse (samples[i] %in% TCGA[TCGA$Type=='Type 1','SAMPLE'],(tipo <- c(tipo, 'Tipo 1')),ifelse(samples[i] %in% TCGA[TCGA$Type=='Type 2','SAMPLE'], (tipo <- c(tipo, 'Tipo 2')),ifelse(samples[i] %in% TCGA[TCGA$Type=='Unk','SAMPLE'], (tipo <- c(tipo, 'Unk')), (tipo <- c(tipo, 'NonTCGA')))))
+}
+
+estimates <- data.frame(estimates)
+DF <- estimates
+DF$Type <- tipo
+DF <- DF[(tipo!='NonTCGA'),]
+names(estimates)
+mean1 <- c()
+mean2 <- c()
+meanUnk <- c()
+pvalueWilcox <- c()
+pvalueKW <- c()
+for (i in names(estimates)){
+  mean1 <- c(mean1, mean(estimates[tipo1,i]))
+  mean2 <- c(mean2, mean(estimates[tipo2,i]))
+  meanUnk <- c(meanUnk, mean(estimates[unk,i]))
+  pvalueWilcox <- c(pvalueWilcox, wilcox.test(estimates[tipo1,i], estimates[tipo2,i])$p.value)
+}
+
+pvalueKW <- c(kruskal.test(T.cells ~ Type,data = DF)$p.value,kruskal.test(Cytotoxic.lymphocytes ~ Type,data = DF)$p.value,kruskal.test(B.lineage ~ Type,data = DF)$p.value,kruskal.test(NK.cells ~ Type,data = DF)$p.value,kruskal.test(Monocytic.lineage ~ Type,data = DF)$p.value,kruskal.test(Myeloid.dendritic.cells ~ Type,data = DF)$p.value,kruskal.test(Neutrophils ~ Type,data = DF)$p.value,kruskal.test(Endothelial.cells ~ Type,data = DF)$p.value,kruskal.test(Fibroblasts ~ Type,data = DF)$p.value)
+
+tabla4 <- data.frame(matrix(c(names(estimates),mean1,mean2,meanUnk,pvalueWilcox,pvalueKW),ncol = 6))
+colnames(tabla4) <- c('Celulas','Mean Type 1','Mean Type 2','Mean Unk','p-valor Wilcox','p-valor KruskalWallis')
+head(tabla4)
+# boxplot(estimates[tipo1,"Fibroblasts"], estimates[tipo2,"Fibroblasts"], estimates[tipoUnk,"Fibroblasts"], main='Fibroblasts', names=c('Type 1','Type 2', 'Type Unk'), ylab='MCP-counter',xlab='p-valor = 6.2e-2')
+```
+
+```{r}
+par(mfrow=c(1,1))
+boxplot(DF_IPS[tipo1,"CP"], DF_IPS[tipo2,"CP"], DF_IPS[unk,"CP"], main="Inmunomoduladoras", names = c('Tipo 1','Tipo 2','Unknown'),ylab='IPS',xlab='p-valor = 8.9e-7')
+boxplot(DF_IPS[tipo1,"Act_CD4"], DF_IPS[tipo2,"Act_CD4"], DF_IPS[unk,"Act_CD4"], main="Linfocitos T CD4+", names = c('Tipo 1','Tipo 2','Unknown'),ylab='IPS',xlab='p-valor = 8.9e-7')
+boxplot(DF_IPS[tipo1,"Act_CD8"], DF_IPS[tipo2,"Act_CD8"], DF_IPS[unk,"Act_CD8"], main="Linfocitos T CD8+", names = c('Tipo 1','Tipo 2','Unknown'),ylab='IPS',xlab='p-valor = 8.9e-7')
+boxplot(DF_IPS[tipo1,"EC"], DF_IPS[tipo2,"EC"], DF_IPS[unk,"EC"], main="Células efectoras", names = c('Tipo 1','Tipo 2','Unknown'),ylab='IPS',xlab='p-valor = 8.9e-7')
+boxplot(DF_IPS[tipo1,"Treg"], DF_IPS[tipo2,"Treg"], DF_IPS[unk,"Treg"], main="Células T reguladoras", names = c('Tipo 1','Tipo 2','Unknown'),ylab='IPS',xlab='p-valor = 8.9e-7')
+boxplot(estimates[tipo1,"T.cells"], estimates[tipo2,"T.cells"], estimates[tipoUnk,"T.cells"], main='Células T', names=c('Type 1','Type 2', 'Type Unk'), ylab='MCP-counter',xlab='p-valor = 6.2e-2')
+boxplot(estimates[tipo1,"Endothelial.cells"], estimates[tipo2,"Endothelial.cells"], estimates[tipoUnk,"Endothelial.cells"], main='Células endoteliales', names=c('Type 1','Type 2', 'Type Unk'), ylab='MCP-counter',xlab='p-valor = 6.2e-2')
+boxplot(estimates[tipo1,"Fibroblasts"], estimates[tipo2,"Fibroblasts"], estimates[tipoUnk,"Fibroblasts"], main='Fibroblastos', names=c('Type 1','Type 2', 'Type Unk'), ylab='MCP-counter',xlab='p-valor = 6.2e-2')
+```
+
+Estas dos tablas, tienen las mismas columnas, simplemente contienen distinta información (pero parecida), para distintos tipos de células. Para simplificar la visualización, se pueden agrupar en una única tabla3-4:
+```{r}
+tabla34 <- rbind(tabla3, tabla4)
+```
+
+De estos conjuntos de células, para ver si hay diferencias significativas entre los tipos de cáncer, se muestran a continuación los grupos de células con diferencias significativas:
+```{r}
+tabla34$Celulas[as.numeric(tabla34$`p-valor KruskalWallis`)<0.05]
+tabla34$Celulas[as.numeric(tabla34$`p-valor KruskalWallis`)<0.1]
+```
+Con un nivel de significancia del 5%, hay diferencias significativas entre los grupos celulares CP, Act_CD4, Act_DE8, EC, TReg, Tcells y Endothelial Cells. Al subir la significancia a los casi-significativos con un 10%, hay diferencias en un grupo más, Fibloblastos.
+
+Se pueden mostrar las diferencias significativas entre estos grupos con boxplots de los datos de las poblaciones de partida (con las que se calcularon los tests de Kruskal Wallis):
+```{r}
+boxplot(DF_IPS[tipo1,"CP"], DF_IPS[tipo2,"CP"], DF_IPS[tipoUnk,"CP"], names=c('Type 1','Type 2', 'Type Unk'))
+mtext('CP', side = 1, line = 3)
+boxplot(DF_IPS[tipo1,"Act_CD4"], DF_IPS[tipo2,"Act_CD4"], DF_IPS[tipoUnk,"Act_CD4"], names=c('Type 1','Type 2', 'Type Unk'))
+mtext('Act_CD4', side = 1, line = 3)
+boxplot(DF_IPS[tipo1,"Act_CD8"], DF_IPS[tipo2,"Act_CD8"], DF_IPS[tipoUnk,"Act_CD8"], names=c('Type 1','Type 2', 'Type Unk'))
+mtext("Act_CD8", side = 1, line = 3)
+boxplot(DF_IPS[tipo1,"EC"], DF_IPS[tipo2,"EC"], DF_IPS[tipoUnk,"EC"], names=c('Type 1','Type 2', 'Type Unk'))
+mtext("EC", side = 1, line = 3)
+boxplot(DF_IPS[tipo1,"Treg"], DF_IPS[tipo2,"Treg"], DF_IPS[tipoUnk,"Treg"], names=c('Type 1','Type 2', 'Type Unk'))
+mtext("Treg", side = 1, line = 3)
+boxplot(estimates[tipo1,"T.cells"], estimates[tipo2,"T.cells"], estimates[tipoUnk,"T.cells"], names=c('Type 1','Type 2', 'Type Unk'))
+mtext("T.cells", side = 1, line = 3)
+boxplot(estimates[tipo1,"Endothelial.cells"], estimates[tipo2,"Endothelial.cells"], estimates[tipoUnk,"Endothelial.cells"], names=c('Type 1','Type 2', 'Type Unk'))
+mtext("Endothelial.cells", side = 1, line = 3)
+boxplot(estimates[tipo1,"Fibroblasts"], estimates[tipo2,"Fibroblasts"], estimates[tipoUnk,"Fibroblasts"], names=c('Type 1','Type 2', 'Type Unk'))
+mtext("Fibroblasts", side = 1, line = 3)
+```
+
+En casi todos los grupos celulares con diferencias significativas, tienen mayor nivel de expresión en el tipo II del pRCC que en el tipo I o en el tipo Unk (por ejemplo, en las células T, es el que menor expresión tiene, a diferencia de la mayoría).
+
+De forma similar a lo que se hizo en la tabla2, en que se comparararon para cada gen la variación de los valores de ESTIMATE, en este caso se va a estudiar si variann los niveles de expresión calculados para cada muestra de MCP-Counter e IPS. Se van a obtener las tablas 3b y 4b:
+
+Estas tablas van a tener, para cada gen, los p-valores de los tests de Wilcoxon. Estos tests, van a ser uno por cada tipo celular, que va a comparar el valor medio de expresión de las muestras sin mutación en dicho gen con el valor medio de expresión de las muestras con dicho gen.
+
+```{r}
+tabla3b <- as.data.frame(genes,col=1)
+samples <- substr(as.character(DF_IPS$SAMPLE), start = 1, stop = 12)
+for (k in tabla3$Celulas){
+  pWilcox <- c()
+  for (i in (genes)){
+    x <- c()
+    y <- c()
+    for (j in 1:nrow(DF_IPS)){
+      if (samples[j] %in% tabla1[tabla1$genes==i,'muestras']){
+        x <- c(x, DF_IPS[,k][j])
+      } else {
+        y <- c(y, DF_IPS[,k][j])
+      }
+    }
+    if (is.null(x)){
+      pWilcox <- c(pWilcox,NA)
+    } else {
+      pWilcox <- c(pWilcox,wilcox.test(x, y)$p.value)
+    }
+  }
+  tabla3b <- cbind(tabla3b,pWilcox)
+}
+colnames(tabla3b) <- c('genes',tabla3$Celulas)
+
+tabla4b <- as.data.frame(genes,col=1)
+samples <- substr(as.character(rownames(estimates)), start = 1, stop = 12)
+samples <- gsub('\\.', '-', samples)
+for (k in tabla4$Celulas){
+  pWilcox <- c()
+  for (i in (genes)){
+    x <- c()
+    y <- c()
+    for (j in 1:nrow(estimates)){
+      if (samples[j] %in% tabla1[tabla1$genes==i,'muestras']){
+        x <- c(x, estimates[,k][j])
+      } else {
+        y <- c(y, estimates[,k][j])
+      }
+    }
+    if (is.null(x)){
+      pWilcox <- c(pWilcox,NA)
+    } else {
+      pWilcox <- c(pWilcox,wilcox.test(x, y)$p.value)
+    }
+  }
+  tabla4b <- cbind(tabla4b,pWilcox)
+}
+colnames(tabla4b) <- c('genes',tabla4$Celulas)
+```
+
+A partir de estas tablas creadas, se puede ver los genes que más afectan a cada grupo celular (con una significancia del 5%):
+```{r}
+for (i in tabla3$Celulas){
+  print(i)
+  
+  print(genes[tabla3b[,i]<0.05])
+}
+for (i in tabla4$Celulas){
+  print(i)
+  print(genes[tabla4b[,i]<0.05])
+}
+```
+
+Estos genes se pueden comparar con los genes identificados en la tabla1b que sólo estaban presentes en uno de los tipos de muestras o bien en los tres grupos distribuidos (copio el trozo del documento):
+- BPTF: sólo presente en las muestras de tipo Unknown
+- C7orf63: Tipo I
+- F2: Tipo Unk
+- FLG: Las 5 mutaciones presentes en la cohorte, todas en el tipo I
+- GLYR1: Tipo I
+- KATNAL2: Tipo Unk
+- MAML1: Las 3 de Tipo Unk
+- MAP1B: Tipo Unk
+- QSER1: Tipo I
+- SPTA1: Las 5 mutaciones, todas en el tipo II.
+
+Además, también hay algunos genes que están en los tres tipos de cáncer, como los siguientes:
+- ANK3, JMJD1C, MACF1, MUC17, SMEK2
+
+Por ejemplo, MAP1B y MAML1 sólo estaban presentes en el tipo Unk, y este gen está afectando a la expresión de las células EC, ACT_CD4, los fibroblastos y Células endoteliales (estos dos tipo únicamente MAML1). O C7orf63, que sólo estaba presente en muestras de tipo I está afectando a la expresión de las células T reguladoras y de los fibroblastos. 
+
+
+
+```{r}
+write.table(tabla1, "tabla1_genes.txt", row.names = T, col.names = T, sep = "\t", quote = F)
+write.csv(tabla1, "tabla1_genes.csv", row.names = T,  quote = F)
+
+write.table(tabla1b, "tabla1b_genes.txt", row.names = T, col.names = T, sep = "\t", quote = F)
+write.table(tabla2, "tabla2_ESTIMATE.txt", row.names = T, col.names = T, sep = "\t", quote = F)
+write.csv(tabla2, "tabla2_ESTIMATE.csv", row.names = T, quote = F)
+write.table(tabla3, "tabla3_IPS.txt", row.names = T, col.names = T, sep = "\t", quote = F)
+write.csv(tabla3, "tabla3_IPS.csv", row.names = T, quote = F)
+write.table(tabla3b, "tabla3b_IPS.txt", row.names = T, col.names = T, sep = "\t", quote = F)
+write.table(tabla4, "tabla4_MCPcounter.txt", row.names = T, col.names = T, sep = "\t", quote = F)
+write.csv(tabla4, "tabla4_MCPcounter.csv", row.names = T, quote = F)
+write.table(tabla4b, "tabla4b_MCPcounter.txt", row.names = T, col.names = T, sep = "\t", quote = F)
+write.table(tabla34, "tabla34RNASeq.txt", row.names = T, col.names = T, sep = "\t", quote = F)
+```
+
+
